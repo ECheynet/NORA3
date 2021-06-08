@@ -7,6 +7,12 @@ The NORA3 atmosphere hindcast data are remotely accessed using the OPeNDAP frame
 
 ## Content
 
+The present submission contains
+  - getNORA3.m: A function that import the NORA3 hindcast from [1]
+  - getz0_charnock.m: A function that estimate the roughness of the sea surface using Charnock's equation and the logarithmic profile of the mean wind speed.
+  - interpU.m: A function that interpolate the mean wind speed using The Deaves and Harris model [2,3]
+  - world.mat: A data file that contains the coastline of countries (used for visualization purpose only)
+  - Documentation.mlx: A matlab livsecript that illsutrates how these functions can be used 
 
 
 ## References
