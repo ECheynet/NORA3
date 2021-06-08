@@ -30,5 +30,5 @@ The present submission contains
 
 ## Example
 
-![Mean wind speed at 10 m above the surface in Northern Europe](illustration.jpg)
+![Mean wind speed at 10 m above the surface in Northern Europe](illustration.jpg| width=100)
 
