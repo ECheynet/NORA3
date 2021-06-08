@@ -16,6 +16,7 @@ The present submission contains
   - world.mat: A data file that contains the coastline of countries (used for visualization purpose only)
   - Documentation.mlx: A Matlab LiveScript that illustrates how these functions can be used 
 
+Any comment, question or suggestion is welcome
 
 ## References
 
