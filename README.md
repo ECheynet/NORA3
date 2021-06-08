@@ -26,3 +26,7 @@ The present submission contains
 [4] Solbrekke, I. M., Sorteberg, A., & Haakenstad, H. (2021). Norwegian hindcast archive (NORA3)–A validation of offshore wind resources in the North Sea and Norwegian Sea. Wind Energy Science Discussions, 1-31.
 
 
+## Example
+
+![Mean wind speed at 10 m above the surface in Northern Europe](illustration.jpg)
+
