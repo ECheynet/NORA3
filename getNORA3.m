@@ -104,25 +104,23 @@ end
 
 % height_above_msl= ncread(urldat,'height_above_msl');
 % top_of_atmosphere= ncread(urldat,'top_of_atmosphere');
-h= ncread(urldat,'atmosphere_boundary_layer_thickness');
+blh= ncread(urldat,'atmosphere_boundary_layer_thickness');
 lon00 = ncread(urldat,'longitude');
 lat00 = ncread(urldat,'latitude');
 [N1,N2]=size(lon00);
 
-
-height2 = ncread(urldat,'height2');
-height4 = ncread(urldat,'height4');
-z = [height4;height2];
+h_10m = ncread(urldat,'height4');
+h = ncread(urldat,'height2');
+z = [h_10m;h];
 
 Nz = numel(z);
 
 ux = zeros(N1,N2,Nz);
 uy = zeros(N1,N2,Nz);
-ux(:,:,1:Nz-1) = ncread(urldat,'x_wind_z'); % zonal
-uy(:,:,1:Nz-1) = ncread(urldat,'y_wind_z'); % meridional
-
-ux(:,:,end) = ncread(urldat,'x_wind_10m');
-uy(:,:,end) = ncread(urldat,'y_wind_10m');
+ux(:,:,2:end) = ncread(urldat,'x_wind_z'); % zonal
+uy(:,:,2:end) = ncread(urldat,'y_wind_z'); % meridional
+ux(:,:,1) = ncread(urldat,'x_wind_10m');
+uy(:,:,1) = ncread(urldat,'y_wind_10m');
 dir10 = ncread(urldat,'wind_direction');
 
 %% Read the data in a for loop for each selected output
