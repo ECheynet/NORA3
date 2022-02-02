@@ -52,13 +52,15 @@ function [data] = getNORA3(targetLat,targetLon,targetYear,targetMonth,targetDay,
 p = inputParser();
 p.CaseSensitive = false;
 p.addOptional('optPara',{}); % optional aprameters
-p.addOptional('speedup',1); % optional aprameters
 p.parse(varargin{:});
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 optPara = p.Results.optPara ;
-speedup= p.Results.speedup ;
 
-
+if numel(targetDay)==1, targetDay = ['0',targetDay];end
+if numel(targetMonth)==1, targetMonth = ['0',targetMonth];end
+if numel(targetHour)==1, targetHour = ['0',targetHour];end
+    
+    
 if ~any(contains(optPara,'T')) && ~isempty(optPara)
     warning('At the moment, only the temperature profiles are implemented as ''optional parameters'' ')
 end
@@ -84,74 +86,61 @@ lat00 = ncread(urldat,'latitude');
 [Nlat,Nlon]=size(lat);
 
 %% To speed up the data extraction in one location
-if numel(targetLat)==1 && numel(targetLon)==1 && speedup ==1
-    
-    [~,indStart] = min(sqrt((lat00(:)-(targetLat(:)-0.5)).^2 + abs(lon00(:)-(targetLon(:)-0.5)).^2));
-    [~,indEnd] = min(sqrt((lat00(:)-(targetLat(:)+0.5)).^2 + abs(lon00(:)-(targetLon(:)+0.5)).^2));
-    [row1, col1] = ind2sub(size(lat00), indStart);
-    [row2, col2] = ind2sub(size(lat00), indEnd);
-    
-    r1 = min(row1,row2); % row start
-    cr = abs(row2-row1);% row count
-    
-    c1 = min(col1,col2); % column start
-    cc = abs(col2-col1); % column count
-    
-    
-    lon00 = ncread(urldat,'longitude',[r1,c1],[cr,cc]);
-    lat00 = ncread(urldat,'latitude',[r1,c1],[cr,cc]);
-    [N1,N2]=size(lon00);
-    height2 = ncread(urldat,'height2');
-    height4 = ncread(urldat,'height4');
-    z = [height4;height2];
-    Nz = numel(z);
-    ux = zeros(N1,N2,Nz);
-    uy = zeros(N1,N2,Nz);
-    ux(:,:,2:end) = ncread(urldat,'x_wind_z',[r1,c1,1,1],[cr,cc,Nz-1,1]); % zonal
-    uy(:,:,2:end) = ncread(urldat,'y_wind_z',[r1,c1,1,1],[cr,cc,Nz-1,1]); % meridional
-    ux(:,:,1) = ncread(urldat,'x_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
-    uy(:,:,1) = ncread(urldat,'y_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
-    dir10 = ncread(urldat,'wind_direction',[r1,c1,1,1],[cr,cc,1,1]);
-    
-    if any(contains(optPara,'T'))
-        Np = 16;
-        p = ncread(urldat,'pressure0');
-        
-        T = ncread(urldat,'air_temperature_pl',[r1,c1,1,1],[cr,cc,Np,1]);
-        T0 = ncread(urldat,'air_temperature_0m',[r1,c1,1,1],[cr,cc,1,1]); % surface temeprature
-        P0 = ncread(urldat,'surface_air_pressure',[r1,c1,1,1],[cr,cc,1,1]); % surface_air_pressure
 
-        
-    end
+if numel(targetLat)==1 &&   numel(targetLon)==1
+    offsetLat = 0.3;
+    offsetLon = 0.15;
+    [~,indStart] = min(sqrt((lat00(:)-(targetLat(1)-offsetLat)).^2 + abs(lon00(:)-(targetLon(1)-offsetLon)).^2));
+    [~,indEnd] = min(sqrt((lat00(:)-(targetLat(1)+offsetLat)).^2 + abs(lon00(:)-(targetLon(1)+offsetLon)).^2));
+elseif numel(targetLat)==2 &&   numel(targetLat)==2
+    
+    offsetLat = 0.5*sqrt(diff(targetLat).^2 + diff(targetLon).^2);
+    offsetLon = offsetLat;
+    [~,indStart] = min(sqrt((lat00(:)-(targetLat(1)-offsetLat)).^2 + abs(lon00(:)-(targetLon(2)-offsetLon)).^2));
+    [~,indEnd] = min(sqrt((lat00(:)-(targetLat(2)+offsetLat)).^2 + abs(lon00(:)-(targetLon(1)+offsetLon)).^2));
 else
+    error('targetLat and targetLatmust have the same dimensions')
+end
+
+
+
+
+[row1, col1] = ind2sub(size(lat00), indStart);
+[row2, col2] = ind2sub(size(lat00), indEnd);
+r1 = min(row1,row2); % row start
+cr = abs(row2-row1+1);% row count
+c1 = min(col1,col2); % column start
+cc = abs(col2-col1+1); % column count
+lon00 = ncread(urldat,'longitude',[r1,c1],[cr,cc]);
+lat00 = ncread(urldat,'latitude',[r1,c1],[cr,cc]);
+dummyLat = double(lat00(:));
+dummyLon = double(lon00(:));
+ind = find(dummyLat>=min(targetLat(:)-offsetLat) & dummyLat <= max(targetLat(:)+offsetLat) &...
+    dummyLon>=min(targetLon(:)-offsetLon) & dummyLon <= max(targetLon(:)+offsetLon));
+
+[N1,N2]=size(lon00);
+height2 = ncread(urldat,'height2');
+height4 = ncread(urldat,'height4');
+z = [height4;height2];
+Nz = numel(z);
+ux = zeros(N1,N2,Nz);
+uy = zeros(N1,N2,Nz);
+ux(:,:,2:end) = ncread(urldat,'x_wind_z',[r1,c1,1,1],[cr,cc,Nz-1,1]); % zonal
+uy(:,:,2:end) = ncread(urldat,'y_wind_z',[r1,c1,1,1],[cr,cc,Nz-1,1]); % meridional
+ux(:,:,1) = ncread(urldat,'x_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
+uy(:,:,1) = ncread(urldat,'y_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
+dir10 = ncread(urldat,'wind_direction',[r1,c1,1,1],[cr,cc,1,1]);
+
+if any(contains(optPara,'T'))
+    Np = 16;
+    p = ncread(urldat,'pressure0');
     
-    h_10m = ncread(urldat,'height4');
-    h = ncread(urldat,'height2');
-    z = [h_10m;h];
-    
-    Nz = numel(z);
-    
-    ux = zeros(N1,N2,Nz);
-    uy = zeros(N1,N2,Nz);
-    ux(:,:,2:end) = ncread(urldat,'x_wind_z'); % zonal
-    uy(:,:,2:end) = ncread(urldat,'y_wind_z'); % meridional
-    ux(:,:,1) = ncread(urldat,'x_wind_10m');
-    uy(:,:,1) = ncread(urldat,'y_wind_10m');
-    dir10 = ncread(urldat,'wind_direction');
-    
-    if any(contains(optPara,'T'))
-        Np = 16;
-        p = ncread(urldat,'pressure0'); % zonal
-        T = ncread(urldat,'air_temperature_pl'); % zonal
-        T0 = ncread(urldat,'air_temperature_0m'); % surface temeprature
-        P0 = ncread(urldat,'surface_air_pressure'); % surface_air_pressure
-    end
+    T = ncread(urldat,'air_temperature_pl',[r1,c1,1,1],[cr,cc,Np,1]);
+    T0 = ncread(urldat,'air_temperature_0m',[r1,c1,1,1],[cr,cc,1,1]); % surface temeprature
+    P0 = ncread(urldat,'surface_air_pressure',[r1,c1,1,1],[cr,cc,1,1]); % surface_air_pressure
 end
 %% Read the data in a for loop for each selected output
 %  Data are resampled spatially as gridded data
-dummyLat = lat00(:);
-dummyLon = lon00(:);
-ind = find(dummyLat>=min(targetLat(:)-0.1) & dummyLat <= max(targetLat(:)+0.1) & dummyLon>=min(targetLon(:)-0.1) & dummyLon <= max(targetLon(:)+0.1));
 
 newUx = zeros(Nlat,Nlon,Nz);
 newUy = zeros(Nlat,Nlon,Nz);
@@ -229,13 +218,18 @@ for ii=1:Nz
 end
 data.z = double(z);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function [z] = getZ_hydrostatic(P,P0,T0)
         g = 9.81 ;% Earth-surface gravitational acceleration
         L = -6.5e-3;% Lapse rate
         Rp = 287.053; %  specific gas constant = 287.053 J/(kg K)
         coeff = -L*Rp./g;
-        A = (P./P0).^coeff-1;
-        z = T0/L.*A;
+        z = zeros(numel(P),size(P0,1),size(P0,2));
+        for jj=1:numel(P),
+            A = (P(jj)./P0).^coeff-1;
+            z(jj,:,:) = T0/L.*A;
+        end
     end
 
     function [myYear,myMonth,myDay,myFolder,leapTime,targetDate] = getMyDate(targetYear,targetMonth,targetDay,targetHour)
