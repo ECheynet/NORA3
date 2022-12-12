@@ -1,7 +1,7 @@
 # Gridded NORA3 data: automated and remote data extraction 
 
 [![View Gridded NORA3 data: automated and remote data extraction on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://se.mathworks.com/matlabcentral/fileexchange/93685-gridded-nora3-data-automated-and-remote-data-extraction)
-
+[![Donation](https://camo.githubusercontent.com/a37ab2f2f19af23730565736fb8621eea275aad02f649c8f96959f78388edf45/68747470733a2f2f77617265686f7573652d63616d6f2e636d68312e707366686f737465642e6f72672f316339333962613132323739393662383762623033636630323963313438323165616239616439312f3638373437343730373333613266326636393664363732653733363836393635366336343733326536393666326636323631363436373635326634343666366536313734363532643432373537393235333233303664363532353332333036313235333233303633366636363636363536353264373936353663366336663737363737323635363536653265373337363637)](https://www.buymeacoffee.com/echeynet)
 
 ## Summary
 The NORA3 atmosphere hindcast data are remotely accessed using the OPeNDAP framework and the THREDDS Data Server of the Norwegian Meteorological Institute [1]. If the data are extracted for multiple latitudes and longitudes, the data are stored in a gridded format. The atmospheric data are retrieved for seven different heights, from 10 m to 750 m  above the surface. The mean wind speed profile can be interpolated using a non-linear scheme based on the Deaves and Harris model [2,3].  Above the ocean, the sea roughness is modelled using the Charnock relation. A summary of the NORA3 data and their potential is available in [4]. This code was used to extract the data used in [5]. 
