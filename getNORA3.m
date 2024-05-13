@@ -21,10 +21,9 @@ function [data] = getNORA3(targetLat,targetLon,targetYear,targetMonth,targetDay,
 %    *  varargin: 
 %               -'optPara'cell of string: Name of the variables to read and
 %               extract the Temperature data from the netcdf file.
-%               - 'newLon': double [1 x M] : array of longitude locations 
-% for the new grid interpolation 
-%               - 'newLat': double [1 x M] : array of latitude locations 
-% for the new grid interpolation 
+%               - 'speedup': double: 1 or anything else. If 1 is chosen,
+%               use a faster method, but I have no guarantee that it works
+%               100% of the time
 % Outputs:
 %   * data: structure with the following fields
 %       - time: [1x1] datetime
@@ -40,22 +39,23 @@ function [data] = getNORA3(targetLat,targetLon,targetYear,targetMonth,targetDay,
 %       - Un:  [Nlon x Nlat x Nz] double: northern mean wind speed component
 %       - T0:  [Nlon x Nlat] double: Surface temperature (if asked by user)
 %       - P0:  [Nlon x Nlat] double: Surface pressure (if asked by user)
-%       - T:  [Nlon x Nlat x Np] double: Temperature profiles (if asked by user)
-%       - zT:  [Nlon x Nlat x Np] double: height for the temperature profiles (if asked by user)
-%       - p:  [Np x 1] double: pressure levels for the temperature (if asked by user)
+%       - T:  [Nlon x Nlat x Np] double: Temperture profiles (if asked by user)
+%       - zT:  [Nlon x Nlat x Np] double: height for the temperture profiles (if asked by user)
+%       - p:  [Np x 1] double: pressure levels for the temeprature (if asked by user)
 %       - z:  [1 x Nz] double: height above the surface
 % Author: E. Cheynet - UiB, Norway - last modified: 07-09-2021
-%% Optional parameters
+
+
+%% Optional aprameters
+
+
 p = inputParser();
 p.CaseSensitive = false;
-p.addOptional('optPara',{}); % optional parameter
-p.addOptional('newLon',[]); % optional parameter
-p.addOptional('newLat',[]); % optional parameter
+p.addOptional('optPara',{}); % optional aprameters
 p.parse(varargin{:});
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 optPara = p.Results.optPara ;
-newLat = p.Results.newLat ;
-newLon = p.Results.newLon ;
+
 if numel(targetDay)==1, targetDay = ['0',targetDay];end
 if numel(targetMonth)==1, targetMonth = ['0',targetMonth];end
 if numel(targetHour)==1, targetHour = ['0',targetHour];end
@@ -64,44 +64,50 @@ if numel(targetHour)==1, targetHour = ['0',targetHour];end
 if ~any(contains(optPara,'T')) && ~isempty(optPara)
     warning('At the moment, only the temperature profiles are implemented as ''optional parameters'' ')
 end
-%% Check month and day number + transform the date into a string
+%% Check month and day number + transform date into string
 [myYear,myMonth,myDay,myFolder,leapTime,targetDate] = getMyDate(targetYear,targetMonth,targetDay,targetHour);
-%% Preallocation and initialisation
+%% Preallocation and initalisation
 data = struct('time',[],'U',[],'D',[],'Un',[],'Ue',[],'lon',[],'lat',[],'D10',[]);
 urldat= ['https://thredds.met.no/thredds/dodsC/nora3/',myYear,'/',myMonth,'/',myDay,'/',myFolder,'/fc',myYear,myMonth,myDay,myFolder,'_00',leapTime,'_fp.nc'];
-time0 = ncread(urldat,'time')./86400+datenum('1970-01-01 00:00:00');
-data.time = datetime(datestr(double(time0)));
+time0 = seconds(ncread(urldat,'time')) +datetime('1970-01-01 00:00:00');
+data.time = time0;
+
+
+
 if data.time ~= targetDate,    error('Failure to recover the target date');end
+
+
 lon00 = ncread(urldat,'longitude');
 lat00 = ncread(urldat,'latitude');
 [N1,N2]=size(lon00);
+
 % height_above_msl= ncread(urldat,'height_above_msl');
 % top_of_atmosphere= ncread(urldat,'top_of_atmosphere');
 % blh= ncread(urldat,'atmosphere_boundary_layer_thickness');
 %% Definition of the grid
-if ~isempty(newLon) && ~isempty(newLat)
-    lon = newLon;
-    lat = newLat;
-    Nlat = numel(lat);
-else
-    [lon,lat] = meshgrid(targetLon(1):resolution:targetLon(end),targetLat(1):resolution:targetLat(end));
-    [Nlat,Nlon]=size(lat);
-end
+[lon,lat] = meshgrid(targetLon(1):resolution:targetLon(end),targetLat(1):resolution:targetLat(end));
+[Nlat,Nlon]=size(lat);
+
 %% To speed up the data extraction in one location
+
 if numel(targetLat)==1 &&   numel(targetLon)==1
     offsetLat = 0.3;
     offsetLon = 0.15;
     [~,indStart] = min(sqrt((lat00(:)-(targetLat(1)-offsetLat)).^2 + abs(lon00(:)-(targetLon(1)-offsetLon)).^2));
     [~,indEnd] = min(sqrt((lat00(:)-(targetLat(1)+offsetLat)).^2 + abs(lon00(:)-(targetLon(1)+offsetLon)).^2));
-elseif numel(targetLon)==2 &&   numel(targetLat)==2
+elseif numel(targetLat)==2 &&   numel(targetLon)==2
     
     offsetLat = 0.5*sqrt(diff(targetLat).^2 + diff(targetLon).^2);
     offsetLon = offsetLat;
     [~,indStart] = min(sqrt((lat00(:)-(targetLat(1)-offsetLat)).^2 + abs(lon00(:)-(targetLon(2)-offsetLon)).^2));
     [~,indEnd] = min(sqrt((lat00(:)-(targetLat(2)+offsetLat)).^2 + abs(lon00(:)-(targetLon(1)+offsetLon)).^2));
 else
-    error('targetLat and targetLatmust have the same dimension')
+    error('targetLat and targetLatmust have the same dimensions')
 end
+
+
+
+
 [row1, col1] = ind2sub(size(lat00), indStart);
 [row2, col2] = ind2sub(size(lat00), indEnd);
 r1 = min(row1,row2); % row start
@@ -114,6 +120,7 @@ dummyLat = double(lat00(:));
 dummyLon = double(lon00(:));
 ind = find(dummyLat>=min(targetLat(:)-offsetLat) & dummyLat <= max(targetLat(:)+offsetLat) &...
     dummyLon>=min(targetLon(:)-offsetLon) & dummyLon <= max(targetLon(:)+offsetLon));
+
 [N1,N2]=size(lon00);
 height2 = ncread(urldat,'height2');
 height4 = ncread(urldat,'height4');
@@ -126,6 +133,7 @@ uy(:,:,2:end) = ncread(urldat,'y_wind_z',[r1,c1,1,1],[cr,cc,Nz-1,1]); % meridion
 ux(:,:,1) = ncread(urldat,'x_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
 uy(:,:,1) = ncread(urldat,'y_wind_10m',[r1,c1,1,1],[cr,cc,1,1]);
 dir10 = ncread(urldat,'wind_direction',[r1,c1,1,1],[cr,cc,1,1]);
+
 if any(contains(optPara,'T'))
     Np = 16;
     p = ncread(urldat,'pressure0');
@@ -136,111 +144,66 @@ if any(contains(optPara,'T'))
 end
 %% Read the data in a for loop for each selected output
 %  Data are resampled spatially as gridded data
-if ~isempty(newLon) && ~isempty(newLat)
-    
-    newUx = zeros(Nlat,Nz);
-    newUy = zeros(Nlat,Nz);
-    if any(contains(optPara,'T'))
-        newT = zeros(Nlat,Np);
-        for ii=1:Np
-            dummyT = T(:,:,ii);
-            dummyT = double(dummyT(:));
-            F_T = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT(ind),'linear','none');
-            newT(:,ii) = F_T(lat,lon);
-        end
-        
-        dummyT0 = double(T0(:));
-        F_T0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT0(ind),'linear','none');
-        newT0 = F_T0(lat,lon);
-        
-        dummyP0 = double(P0(:));
-        F_P0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyP0(ind),'linear','none');
-        newP0 = F_P0(lat,lon);
-        
+
+newUx = zeros(Nlat,Nlon,Nz);
+newUy = zeros(Nlat,Nlon,Nz);
+
+if any(contains(optPara,'T'))
+    newT = zeros(Nlat,Nlon,Np);
+    for ii=1:Np
+        dummyT = T(:,:,ii);
+        dummyT = dummyT(:);
+        F_T = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT(ind),'linear','none');
+        newT(:,:,ii) = F_T(lat,lon);
     end
     
-    clear F_*
+    dummyT0 = T0(:);
+    F_T0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT0(ind),'linear','none');
+    newT0 = F_T0(lat,lon);
     
-    for ii=1:Nz
-        if ii==1
-            H = sqrt(ux(:,:,ii).^2 + uy(:,:,ii).^2);
-            Un = H.*cosd(dir10); Un = double(Un(:));
-            Ue = H.*sind(dir10); Ue = double(Ue(:));
-            F_un = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Un(ind),'linear','none');
-            F_ue = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Ue(ind),'linear','none');
-            newUn = F_un(lat,lon);
-            newUe = F_ue(lat,lon);
-            newDir = atan2d(newUe,newUn);
-        end
-        
-        dummyUx = ux(:,:,ii); dummyUx = double(dummyUx(:));
-        dummyUy = uy(:,:,ii); dummyUy = double(dummyUy(:));
-        F_ux = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUx(ind),'linear','none');
-        F_uy = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUy(ind),'linear','none');
-        newUx(:,ii) = F_ux(lat,lon);
-        newUy(:,ii) = F_uy(lat,lon);
-    end
-    
-else
-    newUx = zeros(Nlat,Nlon,Nz);
-    newUy = zeros(Nlat,Nlon,Nz);
-    
-    if any(contains(optPara,'T'))
-        newT = zeros(Nlat,Nlon,Np);
-        for ii=1:Np
-            dummyT = T(:,:,ii);
-            dummyT = double(dummyT(:));
-            F_T = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT(ind),'linear','none');
-            newT(:,:,ii) = F_T(lat,lon);
-        end
-        
-        dummyT0 = double(T0(:));
-        F_T0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT0(ind),'linear','none');
-        newT0 = F_T0(lat,lon);
-        
-        dummyP0 = double(P0(:));
-        F_P0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyP0(ind),'linear','none');
-        newP0 = F_P0(lat,lon);
-        
-    end
-    
-    clear F_*
-    
-    for ii=1:Nz
-        if ii==1
-            H = sqrt(ux(:,:,ii).^2 + uy(:,:,ii).^2);
-            Un = H.*cosd(dir10); Un = double(Un(:));
-            Ue = H.*sind(dir10); Ue = double(Ue(:));
-            F_un = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Un(ind),'linear','none');
-            F_ue = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Ue(ind),'linear','none');
-            newUn = F_un(lat,lon);
-            newUe = F_ue(lat,lon);
-            newDir = atan2d(newUe,newUn);
-        end
-        
-        dummyUx = ux(:,:,ii); dummyUx = double(dummyUx(:));
-        dummyUy = uy(:,:,ii); dummyUy = double(dummyUy(:));
-        F_ux = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUx(ind),'linear','none');
-        F_uy = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUy(ind),'linear','none');
-        newUx(:,:,ii) = F_ux(lat,lon);
-        newUy(:,:,ii) = F_uy(lat,lon);
-    end
+    dummyP0 = P0(:);
+    F_P0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyP0(ind),'linear','none');
+    newP0 = F_P0(lat,lon);
     
 end
+
+clear F_*
+
+for ii=1:Nz
+    if ii==1
+        H = sqrt(ux(:,:,ii).^2 + uy(:,:,ii).^2);
+        Un = H.*cosd(dir10); Un = Un(:);
+        Ue = H.*sind(dir10); Ue = Ue(:);
+        F_un = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Un(ind),'linear','none');
+        F_ue = scatteredInterpolant(dummyLat(ind),dummyLon(ind),Ue(ind),'linear','none');
+        newUn = F_un(lat,lon);
+        newUe = F_ue(lat,lon);
+        newDir = atan2d(newUe,newUn);
+    end
+    
+    dummyUx = ux(:,:,ii); dummyUx = dummyUx(:);
+    dummyUy = uy(:,:,ii); dummyUy = dummyUy(:);
+    F_ux = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUx(ind),'linear','none');
+    F_uy = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyUy(ind),'linear','none');
+    newUx(:,:,ii) = F_ux(lat,lon);
+    newUy(:,:,ii) = F_uy(lat,lon);
+end
+
 newDir(newDir>360)= newDir(newDir>360) -360;
 newDir(newDir<0)= newDir(newDir<0)  + 360;
+
 data.D10 = newDir;
 data.D = atan2d(-newUx,-newUy);
 data.D(data.D<0)= 360 + data.D(data.D<0);
-if ~isempty(newLon) && ~isempty(newLat)
-    offset = (data.D(:,1) - data.D10(:));
-else
-    offset = (data.D(:,:,1) - data.D10);
-end
+
+
+offset = (data.D(:,:,1) - data.D10);
 data.D = data.D - offset;
+
 data.U = sqrt(newUx.^2 + newUy.^2);
 data.lon = lon;
 data.lat = lat;
+
 if any(contains(optPara,'T'))
     data.T = flip(newT,3);
     data.T0 = newT0;
@@ -249,23 +212,20 @@ if any(contains(optPara,'T'))
     zT = getZ_hydrostatic(data.p,newP0/100,newT0);
     data.zT = zT; % height for temperature
 end
-if ~isempty(newLon) && ~isempty(newLat)
-    for ii=1:Nz
-        data.Un(:,ii) = data.U(:,ii).*cosd(data.D(:,ii));
-        data.Ue(:,ii) = data.U(:,ii).*sind(data.D(:,ii));
-    end
-else
-    for ii=1:Nz
-        data.Un(:,:,ii) = data.U(:,:,ii).*cosd(data.D(:,:,ii));
-        data.Ue(:,:,ii) = data.U(:,:,ii).*sind(data.D(:,:,ii));
-    end
+
+
+
+for ii=1:Nz
+    data.Un(:,:,ii) = data.U(:,:,ii).*cosd(data.D(:,:,ii));
+    data.Ue(:,:,ii) = data.U(:,:,ii).*sind(data.D(:,:,ii));
 end
 data.z = double(z);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function [z] = getZ_hydrostatic(P,P0,T0)
         g = 9.81 ;% Earth-surface gravitational acceleration
-        L = -6.5e-3;% environmental lapse rate (ELR) in degC/km is different from the adiabatic lapse rate, which is -9.8 degC/km
+        L = -6.5e-3;% Lapse rate
         Rp = 287.053; %  specific gas constant = 287.053 J/(kg K)
         coeff = -L*Rp./g;
         z = zeros(numel(P),size(P0,1),size(P0,2));
@@ -274,6 +234,7 @@ data.z = double(z);
             z(jj,:,:) = T0/L.*A;
         end
     end
+
     function [myYear,myMonth,myDay,myFolder,leapTime,targetDate] = getMyDate(targetYear,targetMonth,targetDay,targetHour)
         % folder 00: 3,4,5,6,7,8,9
         % folder 06: 9,10,11,12,13,14,15
@@ -329,4 +290,7 @@ data.z = double(z);
         myYear = num2str(targetYear);
         
     end
+
+
+
 end
