@@ -24,7 +24,8 @@ The present submission contains:
 Any comments, questions, or suggestions are welcome.
 
 ## To know more about NORA3
-    NORA3 Atmosphere is a convection-permitting atmospheric hindcast of the North Sea, the Norwegian Sea, and the Barents Sea for the atmosphere which is produced by running the non-hydrostatic HARMONIE-AROME model (Seity et al., 2011); Bengtsson et al., 2017); Müller et al., 2017) with 3 km horizontal resolution and 65 vertical levels. The model runs 9 hourly forecasts four times a day. Each forecast starts from an assimilated state of the last forecast adapted to surface observations. Model levels are forced with ERA-5.    The NORA3 archive is produced and maintained by the Norwegian Meteorological Institute. See [6-7] for further details on the atmospheric hindcast.
+
+NORA3 Atmosphere is a convection-permitting atmospheric hindcast of the North Sea, the Norwegian Sea, and the Barents Sea for the atmosphere which is produced by running the non-hydrostatic HARMONIE-AROME model (Seity et al., 2011); Bengtsson et al., 2017); Müller et al., 2017) with 3 km horizontal resolution and 65 vertical levels. The model runs 9 hourly forecasts four times a day. Each forecast starts from an assimilated state of the last forecast adapted to surface observations. Model levels are forced with ERA-5.    The NORA3 archive is produced and maintained by the Norwegian Meteorological Institute. See [6-7] for further details on the atmospheric hindcast.
     
 ## References
 
