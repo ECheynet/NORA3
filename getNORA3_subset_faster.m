@@ -1,4 +1,4 @@
-function [data] = getNORA3_subset(targetLat,targetLon,targetYear,targetMonth,targetDay,resolution,varargin)
+function [data] = getNORA3_subset_faster(targetLat,targetLon,targetYear,targetMonth,resolution,varargin)
 %
 % [data] = getNORA3_subset(targetLat, targetLon, targetYear, targetMonth, targetDay, resolution, varargin)
 % Reads data from the NORA3 atmosphere hindcast, resampling them as
@@ -34,8 +34,6 @@ function [data] = getNORA3_subset(targetLat,targetLon,targetYear,targetMonth,tar
 %       - z:  [1 x Nz] double: Heights above the surface for wind measurements.
 %
 % Author: E. Cheynet - UiB, Norway - last modified: 2024-05-13
-
-
 %% Optional aprameters
 p = inputParser();
 p.CaseSensitive = false;
@@ -43,35 +41,23 @@ p.addOptional('optPara',{}); % optional aprameters
 p.parse(varargin{:});
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 optPara = p.Results.optPara ;
-
-if numel(targetDay)==1, targetDay = ['0',targetDay];end
-if numel(targetMonth)==1, targetMonth = ['0',targetMonth];end
-
-
+if numel(targetMonth)==1, targetMonth = ['0',targetMonth];end   
 %% Preallocation and initalisation
 data = struct('time',[],'U',[],'D',[],'Un',[],'Ue',[],'lon',[],'lat',[]);
-
-[myYear,myMonth,myDay,targetDate] = getMyDate(targetYear,targetMonth,targetDay);
+[myYear,myMonth,targetDate] = getMyDate(targetYear,targetMonth);
 urldat = ['https://thredds.met.no/thredds/dodsC/nora3_subset_atmos/wind_hourly_v2/arome3kmwind_1hr_',myYear,myMonth,'.nc'];
-
 dummy = ncread(urldat,'time');
 time0 = seconds(dummy) +datetime('1970-01-01 00:00:00');
-
-[~,indTime]=min(abs(time0-targetDate));
-
-data.time = time0(indTime:indTime+24-1);
-
+data.time = time0;
 lon00 = ncread(urldat,'longitude');
 lat00 = ncread(urldat,'latitude');
 [N1,N2]=size(lon00);
-
 % height_above_msl= ncread(urldat,'height_above_msl');
 % top_of_atmosphere= ncread(urldat,'top_of_atmosphere');
 % blh= ncread(urldat,'atmosphere_boundary_layer_thickness');
 %% Definition of the grid
 [lon,lat] = meshgrid(targetLon(1):resolution:targetLon(end),targetLat(1):resolution:targetLat(end));
 [Nlat,Nlon]=size(lat);
-
 %% To speed up the data extraction in one location
 
 if numel(targetLat)==1 &&   numel(targetLon)==1
@@ -85,7 +71,7 @@ elseif numel(targetLat)==2 &&   numel(targetLon)==2
     [~,indStart] = min(sqrt((lat00(:)-(targetLat(1)-offsetLat)).^2 + abs(lon00(:)-(targetLon(2)-offsetLon)).^2));
     [~,indEnd] = min(sqrt((lat00(:)-(targetLat(2)+offsetLat)).^2 + abs(lon00(:)-(targetLon(1)+offsetLon)).^2));
 else
-    error('targetLat and targetLatmust have the same dimensions')
+    error('targetLat and targetLat must have the same dimensions')
 end
 
 [row1, col1] = ind2sub(size(lat00), indStart);
@@ -103,21 +89,20 @@ ind = find(dummyLat>=min(targetLat(:)-offsetLat) & dummyLat <= max(targetLat(:)+
 
 z = ncread(urldat,'height');
 Nz = numel(z);
-meanU = ncread(urldat,'wind_speed',[r1,c1,1,indTime],[cr,cc,Nz,24]); % zonal
-windDir = ncread(urldat,'wind_direction',[r1,c1,1,indTime],[cr,cc,Nz,24]);
+N = numel(data.time);
+meanU = ncread(urldat,'wind_speed',[r1,c1,1,1],[cr,cc,Nz,N]); % zonal
+windDir = ncread(urldat,'wind_direction',[r1,c1,1,1],[cr,cc,Nz,N]);
 
 if any(contains(optPara,'atm_1h'))
     urldat2 = ['https://thredds.met.no/thredds/dodsC/nora3_subset_atmos/atm_hourly/arome3km_1hr_',myYear,myMonth,'.nc'];
-
-    rain = ncread(urldat2,'precipitation_amount_hourly',[r1,c1,1,indTime],[cr,cc,1,24]);% precipitation_amount_hourly
-    RH0 = ncread(urldat2,'relative_humidity_2m',[r1,c1,1,indTime],[cr,cc,1,24]); % relative humidity at 2 m
-    T0 = ncread(urldat2,'air_temperature_2m',[r1,c1,1,indTime],[cr,cc,1,24]); % air temperature at 2 m
-    P0 = ncread(urldat2,'air_pressure_at_sea_level',[r1,c1,1,indTime],[cr,cc,1,24]); % surface_air_pressure
+    rain = ncread(urldat2,'precipitation_amount_hourly',[r1,c1,1,1],[cr,cc,1,N]);% precipitation_amount_hourly
+    RH0 = ncread(urldat2,'relative_humidity_2m',[r1,c1,1,1],[cr,cc,1,N]); % relative humidity at 2 m
+    T0 = ncread(urldat2,'air_temperature_2m',[r1,c1,1,1],[cr,cc,1,N]); % air temperature at 2 m
+    P0 = ncread(urldat2,'air_pressure_at_sea_level',[r1,c1,1,1],[cr,cc,1,N]); % surface_air_pressure
 end
 %% Read the data in a for loop for each selected output
 %  Data are resampled spatially as gridded data
 
-N = numel(data.time);
 [Nlat, Nlon] = size(lat);
 
 newR = zeros(Nlat, Nlon, N);
@@ -126,26 +111,26 @@ newT0 = zeros(Nlat, Nlon, N);
 newP0 = zeros(Nlat, Nlon, N);
 
 if any(contains(optPara,'atm_1h'))
-
+    
     % Loop over each time step
     for jj = 1:N
         % Rain
-        dummyRain = reshape(rain(:,:,:,jj),[],1);
+        dummyRain = double(reshape(rain(:,:,:,jj),[],1));
         F_R = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyRain(ind),'linear','none');
         newR(:,:,jj) = F_R(lat,lon);
-
+        
         % Relative Humidity
-        dummyRH = reshape(RH0(:,:,jj),[],1);
+        dummyRH = double(reshape(RH0(:,:,jj),[],1));
         F_RH = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyRH(ind),'linear','none');
         newRH(:,:,jj) = F_RH(lat, lon);
-
+        
         % Surface Temperature
-        dummyT0 = reshape(T0(:,:,jj),[],1);
+        dummyT0 = double(reshape(T0(:,:,jj),[],1));
         F_T0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyT0(ind),'linear','none');
         newT0(:,:,jj) = F_T0(lat, lon);
-
+        
         % Surface Pressure
-        dummyP0 = reshape(P0(:,:,jj),[],1);
+        dummyP0 = double(reshape(P0(:,:,jj),[],1));
         F_P0 = scatteredInterpolant(dummyLat(ind),dummyLon(ind),dummyP0(ind),'linear','none');
         newP0(:,:,jj) = F_P0(lat, lon);
     end
@@ -159,6 +144,8 @@ data.Un = zeros(Nlat, Nlon, Nz, N);
 data.Ue = zeros(Nlat, Nlon, Nz, N);
 data.D = zeros(Nlat, Nlon, Nz, N);
 data.U = zeros(Nlat, Nlon, Nz, N);
+
+
 
 for ii = 1:Nz
     for jj = 1:N
@@ -192,6 +179,7 @@ for ii = 1:Nz
 end
 
 
+
 data.lon = lon;
 data.lat = lat;
 
@@ -206,19 +194,15 @@ data.z = double(z);
 % data.time = time;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function [myYear, myMonth, myDay, targetDate] = getMyDate(targetYear, targetMonth, targetDay)
+    function [myYear, myMonth, targetDate] = getMyDate(targetYear, targetMonth)
         % Convert input to numeric if they are strings
         if ischar(targetYear), targetYear = str2double(targetYear); end
         if ischar(targetMonth), targetMonth = str2double(targetMonth); end
-        if ischar(targetDay), targetDay = str2double(targetDay); end
-
-        % Create the target date as a datetime object
-        targetDate = datetime(targetYear, targetMonth, targetDay, 0, 0, 0);
-
+         % Create the target date as a datetime object
+        targetDate = datetime(targetYear, targetMonth, 1, 0, 0, 0);
         % Get the date components from the day before the target date
         myYear = num2str(year(targetDate));
         myMonth = sprintf('%02d', month(targetDate));
-        myDay = sprintf('%02d', day(targetDate));
     end
 
 
